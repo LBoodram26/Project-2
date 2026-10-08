@@ -1,0 +1,61 @@
+---
+title: 'DATA 607 – Project 2: NFL Team Scoring Approach'
+author: "Lakeranie Boodram"
+date: "2026-10-08"
+output: html_document
+---
+
+## NFL – 2026 Team Scoring Statistics
+
+## Introduction
+
+My third dataset is taken from the official NFL website and contains team scoring statistics for the 2026 regular season. This dataset was originally shared by another student during our Week 5 discussion. The table includes information about touchdowns scored by NFL teams, including rushing, receiving, and other touchdown categories.
+
+I decided to use this dataset because I think it would be interesting to compare how different NFL teams score their touchdowns and determine whether certain teams rely more on rushing or receiving touchdowns. I also wanted to work with a sports dataset since my other two datasets focus on electrical distribution and unemployment statistics.
+
+## Why the Dataset Is Untidy
+
+As noted in the Week 5 conversation, this dataset is classified as messy since the various touchdown types are scattered in multiple columns rather than being consolidated in one variable.
+
+For instance, rushing touchdowns, receiving touchdowns, and other touchdowns are recorded under separate columns for each team. Even though this format makes the comparison of stats easy in the NFL website, it complicates the calculation of percentages and scoring categories in R.
+
+The tidy version of this dataset should contain separate columns for the team name, type of touchdown, and number of touchdowns. This will allow for easy comparison of the scoring methods of different teams and spotting trends in their performance.
+
+
+## Planned Data Cleaning and Transformation
+
+I plan to use RStudio to load the original NFL dataset and analyze its structure prior to modifying it in any way. The tidyr and dplyr packages will be used to tidy and transform the data.
+
+To begin, I will check the column names and ascertain if there are any columns with missing values. I will also ensure that the touchdown data is in numeric form and that the total number of touchdowns for each team adds up in the corresponding columns.
+
+Following that, I am going to implement pivot_longer() to convert the touchdowns from different columns into one column for the types of touchdowns and one for their counts. The separate columns for rushing activities, receiving touchdowns, among other stats will be consolidated into only two columns.
+
+I will keep the information on the team to be able to compare teams’ performances under different categories of statistics and apply dplyr to filter the tidy data, group it and summarize when needed.
+
+Finally, due to the current NFL season, I will save the initial dataset and specify the date of collection.
+
+## Planned Analysis
+
+After tidying the dataset, I plan to compare the different scoring styles of NFL teams and identify which teams rely more on rushing or receiving touchdowns.
+
+I also want to calculate the percentage of touchdowns scored in each category and determine which teams have the highest and lowest totals. Another area I would like to explore is whether any teams have unusually high numbers of touchdowns classified as other.
+
+I will use dplyr to calculate touchdown totals and percentages and create summary tables to compare the results. I also plan to use ggplot2 to create bar charts showing the differences in touchdown categories across teams.
+
+## Expected Outcome
+
+I expect this project to help me better understand how different NFL teams score their touchdowns and how their scoring patterns compare. By transforming the dataset into a tidy structure, I should be able to calculate percentages and compare touchdown categories more efficiently.
+
+This project will also help me gain more experience using tidyr and dplyr to organize and analyze real-world sports data.
+
+## References
+
+National Football League. (2026). 2026 NFL offense scoring statistics by team. https://www.nfl.com/stats/team-stats/offense/scoring/2026/reg/all
+
+Wickham, H. (2014). Tidy data. Journal of Statistical Software, 59(10), 1–23. https://doi.org/10.18637/jss.v059.i10
+
+Wickham, H., Vaughan, D., & Girlich, M. (2024). tidyr: Tidy messy data. https://tidyr.tidyverse.org/
+
+Wickham, H., François, R., Henry, L., Müller, K., & Vaughan, D. (2023). dplyr: A grammar of data manipulation. https://dplyr.tidyverse.org/
+
+Wickham, H., Navarro, D., & Pedersen, T. L. (2024). ggplot2: Create elegant data visualisations using the grammar of graphics. https://ggplot2.tidyverse.org/
