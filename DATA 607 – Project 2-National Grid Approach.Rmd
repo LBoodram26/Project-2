@@ -1,0 +1,53 @@
+---
+title: "DATA 607 – Project 2:National Grid Approach "
+author: "Lakeranie Boodram"
+date: "2026-10-08"
+output: html_document
+---
+
+## National Grid – Electrical Distribution System Data
+
+## Introduction
+
+My first dataset is taken from the New York System Data Portal, which I have mentioned before in Week 5 of this course. The dataset provides information on electrical feeders and substations, such as operating voltage, among other things, summer rating, and peak power usage. Certain measurements include yearly numbers, such as 2022 Peak (Amps) and 2023 Peak (Amps).
+
+I decided to keep this dataset for my analysis because I believe it would be interesting to find out if the demand for electricity changes from year to year and which feeders/substations increase in demand the most in any given time period.
+
+## Why the Dataset Is Untidy
+
+As stated in my discussion post, the dataset in question seems to be messy because the year information is part of many column names and not in the form of variable.  Take for example the columns 2022 Peak (Amps) and 2023 Peak (Amps) which instead of being kept in the same column are reported as separate ones. This approach complicates the process of data comparing and organizing.
+
+A tidier version of the dataset would have separate columns for the year, peak amps, and percent of rating. This would make it easier to compare measurements and perform calculations in R.
+
+## Planned Data Cleaning and Transformation
+
+I plan to use RStudio to import the original dataset and examine its structure before making any changes. I will use the tidyr and dplyr packages to clean and transform the data. First, I will review the column names, check for missing values, and confirm that the numerical measurements are stored correctly.
+
+Next, I will use pivot_longer() to reorganize the year-specific columns into a longer format. Instead of having separate columns for peak electrical usage in 2022 and 2023, I will create a year column and organize the corresponding measurements under peak amps and percent of rating. I will keep the identifying information for each feeder and substation so that I can compare the same equipment across different years. I will also use dplyr to filter, group, and summarize the cleaned data.
+
+## Planned Analysis
+
+In order to import the initial dataset and understand its structure beforehand, I will be using RStudio. It will be followed by data cleaning and transformation with the use of tidyr and dplyr packages.
+Initially, I will check the names of the columns, presence of missing values in the data, as well as the way the numerical data is stored. 
+After that I will use the pivot_longer() to transform the year-dependent columns into a longer structure. Instead of keeping separate years like peak electricity in 2022 and in 2023 I will have just one column of year and then values corresponding to this column will be placed into peak amps and percentage of rating columns. 
+Additionally, I will preserve the identifiers of each feeder and substations in order to compare the same equipment in different years, I will explore the cleaned data using dplyr.
+
+After tidying the dataset, I plan to compare peak electrical demand between 2022 and 2023 to identify which feeders or substations experienced the largest increases or decreases in demand. I also want to examine which locations are operating closest to their rated capacity by comparing peak electrical usage with the available summer ratings and percent-of-rating measurements.
+
+I will use dplyr to group and summarize the data and calculate the differences in peak electrical usage between the two years. I also plan to create summary tables and bar charts using ggplot2 to help visualize the changes and identify any interesting patterns.
+
+## Expected Outcome
+
+I expect this project to help me better understand how data tidying improves the process of analyzing electrical distribution information. By separating the year from the measurement columns, I should be able to compare electrical usage more efficiently and identify patterns that are harder to see in the original wide-format dataset.
+
+This project will also allow me to practice using tidyr and dplyr to transform real-world data and prepare it for analysis.
+
+## References
+
+National Grid. (n.d.). New York System Data Portal: Distribution assets overview. https://systemdataportal.nationalgrid.com/arcgis/rest/services/NYSDP/DistAssetsOverview/MapServer
+
+Wickham, H. (2014). Tidy data. Journal of Statistical Software, 59(10), 1–23. https://doi.org/10.18637/jss.v059.i10
+
+Wickham, H., Vaughan, D., & Girlich, M. (2024). tidyr: Tidy messy data. https://tidyr.tidyverse.org/
+
+Wickham, H., François, R., Henry, L., Müller, K., & Vaughan, D. (2023). dplyr: A grammar of data manipulation. https://dplyr.tidyverse.org/
