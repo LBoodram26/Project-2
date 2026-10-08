@@ -1,0 +1,57 @@
+---
+title: "Project2- BLS Unemployment"
+author: "Lakeranie Boodram"
+date: "2026-10-08"
+output: html_document
+---
+
+## U.S. Bureau of Labor Statistics – State Employment and Unemployment Data
+
+## Introduction
+
+My second dataset is taken from the U.S. Bureau of Labor Statistics (BLS) State Employment and Unemployment report published on April 8, 2026. This dataset was originally shared by another student during our Week 5 discussion. The report provides information on unemployment rates and labor force statistics across different states and reporting periods.
+
+I decided to use this dataset because I think it would be interesting to compare unemployment rates across different states and see how employment conditions have changed over time. I am also interested in comparing New York’s unemployment rate with other states.
+
+## Why the Dataset Is Untidy
+
+As mentioned in the Week 5 discussion, this dataset is considered untidy because some of the reporting dates and unemployment measurements are spread across multiple columns rather than being organized into separate variables.
+
+For example, unemployment rates for different months and years are displayed in separate columns. Although this makes the table easier to read, it can make comparing and analyzing the information in R more difficult.
+
+A tidier version of the dataset would have separate columns for the state, reporting period, and unemployment rate. This would make it easier to compare unemployment rates across different states and examine changes over time.
+
+## Planned Data Cleaning and Transformation
+
+I will open the original dataset BLS using RStudio to observe its structure prior to carrying out any operations. I will proceed by utilizing tidyr and dplyr in order to clean and reshape the given dataset.
+The first thing that I will carry out is assessing column names and to check the absence of any missing values as well as verifying whether the values of unemployment rate and other numerical measurements are in fact recorded properly.
+
+After that, I will make use of function pivot_longer() in order to convert the data in month- and year-specific columns to longer format. Rather than having several columns for reporting the rates of unemployment from different reporting periods, I will create a column for the reporting period itself and store unemployment rates in relevant column.
+
+Additionally, I will preserve the names of states to be able to compare the same states at different time periods. Furthermore, I will use dplyr in order to filter, group and summarize the cleaned dataset.
+
+## Planned Analysis
+
+After tidying the dataset, I plan to compare unemployment rates across states and determine which states experienced the largest increases or decreases during the reporting periods.
+
+I also want to identify which states have the highest and lowest unemployment rates and examine how New York compares with other states.
+
+I will use dplyr to calculate changes in unemployment rates and create summary tables. I also plan to use ggplot2 to create bar charts and line graphs to visualize the differences between states and the changes over time.
+
+Expected Outcome
+
+I expect this project to help me better understand how unemployment rates differ across states and how these rates change over different reporting periods. By transforming the dataset into a tidy structure, I should be able to compare the information more efficiently and identify patterns that may be difficult to see in the original wide-format table.
+
+This project will also help me gain more experience using tidyr and dplyr to clean and analyze real-world economic data.
+
+## References
+
+U.S. Bureau of Labor Statistics. (2026, April 8). State employment and unemployment — January 2026. https://www.bls.gov/news.release/archives/laus_04082026.htm
+
+Wickham, H. (2014). Tidy data. Journal of Statistical Software, 59(10), 1–23. https://doi.org/10.18637/jss.v059.i10
+
+Wickham, H., Vaughan, D., & Girlich, M. (2024). tidyr: Tidy messy data. https://tidyr.tidyverse.org/
+
+Wickham, H., François, R., Henry, L., Müller, K., & Vaughan, D. (2023). dplyr: A grammar of data manipulation. https://dplyr.tidyverse.org/
+
+Wickham, H., Navarro, D., & Pedersen, T. L. (2024). ggplot2: Create elegant data visualisations using the grammar of graphics. https://ggplot2.tidyverse.org/
