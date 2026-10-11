@@ -1,0 +1,447 @@
+---
+title: "DATA 607 – Project 2: National Grid Code Base"
+author: "Lakeranie Boodram"
+date: "2026-10-09"
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: false
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+
+## Introduction
+
+For this project, I will be working with electrical distribution data from National Grid's New York System Data Portal.
+
+## Load Required Packages
+
+```{r}
+
+library(tidyverse)
+library(knitr)
+```
+
+## Import National Grid Data
+
+In this section, I will connect to National Grid's New York System Data Portal to identify the available data layers. This will help me locate the electrical feeder and substation information needed for my analysis.
+
+```{r}
+# Load package to read JSON data
+library(jsonlite)
+
+# National Grid ArcGIS data source
+base_url <- paste0("https://systemdataportal.nationalgrid.com/",
+"arcgis/rest/services/NYSDP/",
+"DistAssetsOverview/MapServer"
+)
+
+# Retrieve information about available data layers
+service_info <- jsonlite::fromJSON(
+paste0(base_url, "?f=pjson")
+)
+
+# Display available layers
+service_info$layers[, c("id", "name")]
+```
+
+## Examine National Grid Data Fields
+
+After identifying the available layers, I will examine the fields in Layer 2 to understand what information is available. I want to confirm that the dataset contains the feeder, substation, summer rating, and peak electrical demand measurements needed for my analysis.
+
+```{r}
+# Select Layer 2 (UG)
+layer_url <- paste0(base_url, "/2")
+
+# Retrieve layer information
+layer_info <- jsonlite::fromJSON(
+  paste0(layer_url, "?f=pjson")
+)
+
+# Display field names and descriptions
+layer_info$fields[, c("name", "alias")]
+```
+
+## Import National Grid Records
+
+After confirming the available fields, I will import the electrical distribution records from Layer 2 of National Grid's data portal. I will keep the original measurements in their wide format so I can examine the data before making any changes.
+
+```{r}
+# Select the fields needed for the analysis
+selected_fields <- c(
+  "OBJECTID",
+  "MASTER_CDF",
+  "SUBSTATION_NAME",
+  "OPERATING_VOLTAGE",
+  "FEEDER_SN_RATING_AMPS",
+  "PEAK_AMPS_CURRENT_YEAR",
+  "PEAK_AMPS_LAST_YEAR",
+  "PCT_RATING_CURRENT_YEAR",
+  "PCT_RATING_LAST_YEAR"
+)
+
+# Retrieve records from the National Grid ArcGIS service
+query_url <- paste0(layer_url, "/query")
+
+national_grid_raw <- jsonlite::fromJSON(
+  paste0(
+    query_url,
+    "?where=1%3D1",
+    "&outFields=", paste(selected_fields, collapse = ","),
+    "&returnGeometry=false",
+    "&resultRecordCount=100",
+    "&f=json"
+  ),
+  flatten = TRUE
+)
+
+# Check for an API error
+if (!is.null(national_grid_raw$error)) {
+  stop(national_grid_raw$error$message)
+}
+
+# Extract the records
+national_grid <- national_grid_raw$features$attributes
+
+# Display the number of records and columns
+dim(national_grid)
+
+# Preview the first six records
+knitr::kable(head(national_grid))
+```
+
+## Check National Grid API Response
+
+The initial import did not produce a data frame. I will examine the API response to identify why the records were not extracted correctly before continuing with the analysis.
+
+```{r}
+# Check the structure of the API response
+class(national_grid_raw)
+
+# Display the main sections returned by the API
+names(national_grid_raw)
+
+# Check whether the response contains an error
+national_grid_raw$error
+
+# Check the structure of the returned features
+str(national_grid_raw$features, max.level = 2)
+```
+
+## Correct the National Grid Data Import
+
+After reviewing the API response, I found that the National Grid records were successfully retrieved, but the JSON data had already been flattened into a data frame. This caused the original extraction method to return NULL.
+
+I will correct the extraction process by using the features data directly and removing the attributes prefix from the column names.
+
+```{r}
+# Extract the imported records
+national_grid <- national_grid_raw$features
+
+# Remove the attributes prefix from column names
+names(national_grid) <- sub(
+  "^attributes\\.",
+  "",
+  names(national_grid)
+)
+
+# Check the number of rows and columns
+dim(national_grid)
+
+# Display the column names
+names(national_grid)
+
+# Preview the first six records
+print(head(national_grid))
+```
+
+## Save the Original National Grid Dataset
+
+Now that I have successfully imported the National Grid records, I will save the dataset in its original wide format before making any transformations. This will allow me to preserve the original structure and compare it with the cleaned dataset later.
+
+I will also upload the CSV file to GitHub so the data can be accessed directly when running my analysis.
+
+```{r}
+# Save the original wide-format dataset
+readr::write_csv(
+  national_grid,
+  "National_Grid_Original.csv"
+)
+
+# Confirm that the file was created
+file.exists("National_Grid_Original.csv")
+
+# Display the number of rows and columns
+dim(national_grid)
+
+# Confirm the original column names
+names(national_grid)
+```
+
+## Load National Grid Data From GitHub
+
+After uploading the original National Grid dataset to GitHub, I will import the CSV file directly using its raw GitHub URL. This will make my analysis reproducible and allow others to access the same data without needing a local file.
+
+```{r}
+# Import original National Grid dataset from GitHub
+github_url <- "https://raw.githubusercontent.com/LBoodram26/Project-2/main/National_Grid_Original.csv"
+
+national_grid <- readr::read_csv(
+  github_url,
+  show_col_types = FALSE
+)
+
+# Check dataset dimensions
+dim(national_grid)
+
+# Display column names
+names(national_grid)
+
+# Preview the first six rows
+print(head(national_grid))
+```
+
+## Check Data Quality
+
+Before transforming the National Grid dataset, I will check for missing values, duplicate records, and data types. This will help me identify any issues that could affect my analysis.
+
+I will also examine the structure of the dataset to confirm that the electrical measurements are stored correctly.
+
+```{r}
+# Check the structure of the dataset
+str(national_grid)
+
+# Count missing values in each column
+missing_values <- national_grid %>%
+  summarise(across(
+    everything(),
+    ~ sum(is.na(.x))
+  ))
+
+print(missing_values)
+
+# Check for duplicate feeder records
+duplicate_feeders <- national_grid %>%
+  count(MASTER_CDF) %>%
+  filter(n > 1)
+
+print(duplicate_feeders)
+
+# Check for completely duplicated rows
+sum(duplicated(national_grid))
+
+# Display summary statistics
+summary(national_grid)
+```
+
+## Transform the Dataset From Wide to Long Format
+
+After reviewing the data quality, I found that the dataset contains 87 records and 9 columns, with no missing values or duplicate feeder records. The numerical measurements are also stored correctly.
+
+I will now use the pivot_longer() function from the tidyr package to transform the year-specific columns into a tidy format. Instead of keeping separate columns for 2022 and 2023, I will create a year column along with separate columns for peak amps and percent of rating.
+
+This will make it easier to compare electrical demand across the two years while preserving the feeder and substation information.
+
+```{r}
+# Rename columns and keep the original dataset unchanged
+national_grid_clean <- national_grid %>%
+  rename(
+    feeder = MASTER_CDF,
+    substation = SUBSTATION_NAME,
+    operating_voltage = OPERATING_VOLTAGE,
+    summer_rating_amps = FEEDER_SN_RATING_AMPS,
+    peak_amps_2023 = PEAK_AMPS_CURRENT_YEAR,
+    peak_amps_2022 = PEAK_AMPS_LAST_YEAR,
+    percent_rating_2023 = PCT_RATING_CURRENT_YEAR,
+    percent_rating_2022 = PCT_RATING_LAST_YEAR
+  )
+
+# Convert yearly measurements into a tidy format
+national_grid_tidy <- national_grid_clean %>%
+  pivot_longer(
+    cols = c(
+      peak_amps_2022,
+      peak_amps_2023,
+      percent_rating_2022,
+      percent_rating_2023
+    ),
+    names_to = c(".value", "year"),
+    names_pattern = "(peak_amps|percent_rating)_(2022|2023)"
+  ) %>%
+  mutate(year = as.integer(year)) %>%
+  arrange(feeder, year)
+
+# Check the dimensions of the tidy dataset
+dim(national_grid_tidy)
+
+# Preview the first six rows
+print(head(national_grid_tidy))
+
+# Check the column names
+names(national_grid_tidy)
+```
+
+## Compare Peak Electrical Demand Between 2022 and 2023
+
+After transforming the dataset into a tidy format, I will compare peak electrical demand between 2022 and 2023. I want to identify which feeders experienced the largest increases or decreases in electrical demand.
+
+I will use dplyr and pivot_wider() to place the yearly peak measurements side by side for this comparison. I will then calculate the difference in peak amps between the two years.
+
+A positive difference indicates an increase in demand, while a negative difference indicates a decrease.
+
+```{r}
+# Compare peak demand for each feeder between the two years
+demand_changes <- national_grid_tidy %>%
+  select(OBJECTID, feeder, substation, year, peak_amps) %>%
+  pivot_wider(
+    names_from = year,
+    values_from = peak_amps,
+    names_prefix = "peak_"
+  ) %>%
+  mutate(
+    change_amps = peak_2023 - peak_2022
+  ) %>%
+  arrange(desc(change_amps))
+
+# Display the largest increases in peak demand
+largest_increases <- demand_changes %>%
+  slice_head(n = 10)
+
+print(largest_increases)
+
+# Display the largest decreases in peak demand
+largest_decreases <- demand_changes %>%
+  arrange(change_amps) %>%
+  slice_head(n = 10)
+
+print(largest_decreases)
+
+# Summarize the number of feeders with increases or decreases
+demand_summary <- demand_changes %>%
+  summarise(
+    increased = sum(change_amps > 0, na.rm = TRUE),
+    decreased = sum(change_amps < 0, na.rm = TRUE),
+    unchanged = sum(change_amps == 0, na.rm = TRUE),
+    average_change_amps = mean(change_amps, na.rm = TRUE)
+  )
+
+print(demand_summary)
+```
+
+## Visualize Changes in Peak Electrical Demand
+
+After calculating the differences in peak electrical demand, I found that 34 feeders experienced increases, 34 experienced decreases, and 19 remained unchanged between 2022 and 2023. The average change across the feeders was an increase of approximately 4.82 amps.
+
+The largest increase occurred at Temple Street, while the largest decrease occurred at Trinity.
+
+I will use ggplot2 to create a bar chart showing the ten feeders with the largest increases in electrical demand. This will help me visualize which feeders experienced the biggest changes between the two years.
+
+```{r}
+# Select the ten feeders with the largest increases
+top_increases <- demand_changes %>%
+  slice_max(
+    order_by = change_amps,
+    n = 10,
+    with_ties = FALSE
+  )
+
+# Create a bar chart of the largest increases
+ggplot(
+  top_increases,
+  aes(
+    x = reorder(feeder, change_amps),
+    y = change_amps
+  )
+) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Top 10 Feeders With the Largest Increase in Peak Demand",
+    subtitle = "National Grid: 2022 to 2023",
+    x = "Feeder",
+    y = "Increase in Peak Demand (Amps)"
+  ) +
+  theme_minimal()
+```
+
+## Identify Feeders Operating Closest to Rated Capacity
+
+After comparing changes in peak electrical demand, I want to examine which feeders are operating closest to their rated capacity.
+
+I will use the percent-of-rating measurements from 2023 to identify the feeders with the highest utilization. A higher percentage indicates that a feeder's recorded peak electrical demand was closer to its summer rating.
+
+I will use dplyr to organize the results and ggplot2 to create a bar chart showing the ten feeders with the highest percentage of rated capacity.
+
+```{r}
+# Select 2023 data and identify the highest utilization
+highest_utilization <- national_grid_tidy %>%
+  filter(year == 2023) %>%
+  filter(!is.na(percent_rating)) %>%
+  arrange(desc(percent_rating)) %>%
+  slice_head(n = 10)
+
+# Display the ten feeders closest to rated capacity
+print(
+  highest_utilization %>%
+    select(
+      feeder,
+      substation,
+      summer_rating_amps,
+      peak_amps,
+      percent_rating
+    )
+)
+
+# Create a bar chart of feeder utilization
+ggplot(
+  highest_utilization,
+  aes(
+    x = reorder(feeder, percent_rating),
+    y = percent_rating
+  )
+) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Top 10 Feeders Closest to Rated Capacity",
+    subtitle = "National Grid: 2023",
+    x = "Feeder",
+    y = "Percentage of Summer Rating (%)"
+  ) +
+  theme_minimal()
+```
+
+## Summary of Findings
+
+After cleaning and transforming the National Grid dataset, I was able to compare electrical demand between 2022 and 2023 across 87 feeder records. The original dataset contained separate columns for the yearly measurements, so I used pivot_longer() to create a tidy structure with separate columns for year, peak amps, and percent of rating.
+
+The analysis showed that 34 feeders experienced an increase in peak electrical demand, 34 experienced a decrease, and 19 remained unchanged. The average change across the feeders was an increase of approximately 4.82 amps.
+
+One finding that stood out was the Temple Street feeder, which experienced the largest increase in peak electrical demand. Its peak usage increased from approximately 40.86 amps in 2022 to 322 amps in 2023.
+
+I also compared the feeders based on their percentage of summer-rated capacity. The Buffalo Avenue feeder had the highest recorded utilization at approximately 82.18%, followed by Temple Street at 74.88% and Liberty at 72.66%.
+
+Overall, the analysis helped me see how electrical demand can vary between feeders and how data tidying makes it easier to compare information across different years. It also showed how using dplyr and ggplot2 can help identify changes and present the results more clearly.
+
+## Data Source and References
+
+The original dataset was obtained from National Grid’s New York System Data Portal, using the Distribution Assets Overview ArcGIS service. For this project, I used 87 records from the UG layer, which contain feeder and substation information, summer ratings, and peak electrical demand measurements for 2022 and 2023.
+
+The original wide-format dataset was uploaded to GitHub and imported directly into R using a raw GitHub CSV link to make the analysis reproducible.
+
+Original dataset on GitHub: <https://github.com/LBoodram26/Project-2/blob/main/National_Grid_Original.csv>
+
+References
+
+National Grid. (n.d.). New York System Data Portal: Distribution assets overview. <https://systemdataportal.nationalgrid.com/arcgis/rest/services/NYSDP/DistAssetsOverview/MapServer>
+
+Wickham, H. (2014). Tidy data. Journal of Statistical Software, 59(10), 1–23. <https://doi.org/10.18637/jss.v059.i10>
+
+Wickham, H., Vaughan, D., & Girlich, M. (2024). tidyr: Tidy messy data. <https://tidyr.tidyverse.org/>
+
+Wickham, H., François, R., Henry, L., Müller, K., & Vaughan, D. (2023). dplyr: A grammar of data manipulation. <https://dplyr.tidyverse.org/>
+
+Wickham, H., Navarro, D., & Pedersen, T. L. (2024). ggplot2: Create elegant data visualisations using the grammar of graphics. <https://ggplot2.tidyverse.org/>
