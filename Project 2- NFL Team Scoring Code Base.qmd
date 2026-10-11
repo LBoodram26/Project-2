@@ -1,0 +1,375 @@
+---
+
+---
+title: "DATA 607 – Project 2: NFL Team Scoring Code Base"
+author: "Lakeranie Boodram"
+date: "2026-10-11"
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: false
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+
+## Introduction
+
+For my third dataset, I will be working with NFL team scoring statistics from the 2026 regular season. This dataset was originally shared by another student during our Week 5 discussion.
+
+I decided to use this dataset because I think it would be interesting to compare how NFL teams score their touchdowns and determine whether certain teams rely more on rushing or receiving touchdowns.
+
+The original dataset contains different touchdown categories in separate columns. I will use tidyr and dplyr to reorganize the data into a tidy format, calculate scoring percentages, and compare the scoring patterns of different teams.
+
+Since the 2026 NFL season is still ongoing, I will document the date the data was collected so that the results represent a specific point in the season.
+
+## Load Required Packages
+
+I will use R packages to import, clean, transform, and visualize the NFL scoring data.
+
+```{r}
+# Load required packages
+library(tidyverse)
+library(rvest)
+library(knitr)
+```
+
+## Import NFL Team Scoring Data
+
+For this project, I collected the 2026 NFL team scoring statistics from the official NFL website. The dataset contains information about rushing touchdowns, receiving touchdowns, total touchdowns, and two-point conversions for all 32 NFL teams.
+
+Since the NFL season is ongoing, I saved a copy of the original dataset and uploaded it to my GitHub repository. I will import the original CSV file directly from GitHub so that the analysis can be reproduced using the same statistics.
+
+This will also allow me to preserve the original wide-format data before cleaning and transforming it.
+
+```{r}
+# Import the original NFL dataset from my GitHub repository
+github_nfl_url <- "https://raw.githubusercontent.com/LBoodram26/Project-2/main/NFL_2026_Original.csv"
+
+nfl_raw <- readr::read_csv(
+  github_nfl_url,
+  show_col_types = FALSE
+)
+
+# Check the dimensions
+dim(nfl_raw)
+
+# Preview the original data
+print(head(nfl_raw, 8))
+```
+
+## Examine the NFL Team Scoring Data
+
+After importing the original NFL scoring dataset from GitHub, I will examine the structure to identify the team names, touchdown categories, and scoring measurements.
+
+The original dataset contains information about rushing touchdowns, receiving touchdowns, total touchdowns, and two-point conversions for all 32 NFL teams.
+
+Before cleaning the dataset, I want to review the column names, data types, and first few records to understand how the information is organized.
+
+```{r}
+# Check the number of rows and columns
+dim(nfl_raw)
+
+# Display the original column names
+names(nfl_raw)
+
+# Preview the first eight rows
+print(head(nfl_raw, 8))
+
+# Examine the original data structure
+str(nfl_raw)
+```
+
+## Clean the NFL Team Scoring Data
+
+After examining the NFL scoring table, I found that it contains 32 teams and five columns. The dataset includes rushing touchdowns, receiving touchdowns, total touchdowns, and two-point conversions.
+
+I also noticed that the team names were duplicated during the import process. For example, the Buffalo Bills appeared as BillsBills. I will correct the team names, rename the scoring columns, and check for missing values and duplicate records.
+
+I will also calculate the number of touchdowns that are not classified as rushing or receiving by subtracting those categories from the total touchdowns.
+
+```{r}
+# Rename the original NFL columns
+nfl_clean <- nfl_raw |>
+  dplyr::rename(
+    team = Team,
+    rushing_td = `Rsh TD`,
+    receiving_td = `Rec TD`,
+    total_td = `Tot TD`,
+    two_point = `2-PT`
+  )
+
+# Correct duplicated team names
+nfl_clean <- nfl_clean |>
+  dplyr::mutate(
+    team = stringr::str_replace(
+      team,
+      "^(.+?)\\1$",
+      "\\1"
+    )
+  )
+
+# Calculate touchdowns classified as other
+nfl_clean <- nfl_clean |>
+  dplyr::mutate(
+    other_td = total_td - rushing_td - receiving_td
+  )
+
+# Check dataset dimensions
+dim(nfl_clean)
+
+# Display the cleaned data
+print(head(nfl_clean, 10))
+
+# Check missing values
+colSums(is.na(nfl_clean))
+
+# Check duplicate team names
+sum(duplicated(nfl_clean$team))
+
+# Check for invalid touchdown totals
+sum(nfl_clean$other_td < 0, na.rm = TRUE)
+```
+
+## Transform NFL Scoring Data From Wide to Long Format
+
+After cleaning the NFL scoring dataset, I confirmed that it contains 32 teams with no missing values or duplicate records. I also corrected the team names and calculated the number of touchdowns that were not classified as rushing or receiving.
+
+I will now use pivot_longer() from the tidyr package to reorganize the touchdown categories into a tidy format. Instead of having separate columns for rushing, receiving, and other touchdowns, I will create a touchdown type column and a touchdown count column.
+
+I will preserve the original total touchdowns and two-point conversion measurements so I can use them for additional comparisons and data validation.
+
+```{r}
+# Transform the NFL scoring categories into tidy format
+nfl_tidy <- nfl_clean |>
+  tidyr::pivot_longer(
+    cols = c(
+      rushing_td,
+      receiving_td,
+      other_td
+    ),
+    names_to = "touchdown_type",
+    values_to = "touchdowns"
+  ) |>
+  dplyr::mutate(
+    touchdown_type = dplyr::recode(
+      touchdown_type,
+      rushing_td = "Rushing",
+      receiving_td = "Receiving",
+      other_td = "Other"
+    )
+  ) |>
+  dplyr::arrange(team, touchdown_type)
+
+# Check the tidy dataset dimensions
+dim(nfl_tidy)
+
+# Preview the first nine observations
+print(head(nfl_tidy, 9))
+
+# Display the new column names
+names(nfl_tidy)
+
+# Confirm each touchdown category has 32 observations
+print(table(nfl_tidy$touchdown_type))
+
+# Check that touchdown totals still match
+validation <- nfl_tidy |>
+  dplyr::group_by(team) |>
+  dplyr::summarise(
+    calculated_total = sum(touchdowns),
+    reported_total = dplyr::first(total_td),
+    .groups = "drop"
+  ) |>
+  dplyr::mutate(
+    totals_match = calculated_total == reported_total
+  )
+
+print(table(validation$totals_match))
+```
+
+## Calculate Touchdown Percentages by Team
+
+After transforming the NFL scoring dataset into a tidy format, I now have 96 observations representing 32 NFL teams and three touchdown categories.
+
+The validation results confirmed that the rushing, receiving, and other touchdowns add up to the reported total touchdowns for all 32 teams.
+
+I will now calculate the percentage of touchdowns scored in each category to compare the different scoring styles of NFL teams. This will help identify which teams rely more on rushing touchdowns and which teams rely more on receiving touchdowns.
+
+I will also check whether any teams have unusually high percentages of touchdowns classified as other.
+
+```{r}
+# Calculate the percentage of touchdowns by category
+nfl_percentages <- nfl_tidy |>
+  dplyr::mutate(
+    touchdown_percentage = dplyr::if_else(
+      total_td > 0,
+      round((touchdowns / total_td) * 100, 2),
+      NA_real_
+    )
+  ) |>
+  dplyr::arrange(team, touchdown_type)
+
+# Preview the results
+print(head(nfl_percentages, 12))
+
+# Identify teams with the highest rushing touchdown percentage
+highest_rushing <- nfl_percentages |>
+  dplyr::filter(touchdown_type == "Rushing") |>
+  dplyr::arrange(dplyr::desc(touchdown_percentage)) |>
+  dplyr::slice_head(n = 10)
+
+print(highest_rushing)
+
+# Identify teams with the highest receiving touchdown percentage
+highest_receiving <- nfl_percentages |>
+  dplyr::filter(touchdown_type == "Receiving") |>
+  dplyr::arrange(dplyr::desc(touchdown_percentage)) |>
+  dplyr::slice_head(n = 10)
+
+print(highest_receiving)
+
+# Check touchdowns classified as Other
+other_touchdowns <- nfl_percentages |>
+  dplyr::filter(
+    touchdown_type == "Other",
+    touchdowns > 0
+  ) |>
+  dplyr::arrange(dplyr::desc(touchdowns))
+
+print(other_touchdowns)
+```
+
+## Visualize NFL Team Scoring Styles
+
+After calculating touchdown percentages, I found that NFL teams have different scoring patterns. The Colts and Falcons had the highest percentage of rushing touchdowns at approximately 72.7%, while the Raiders had the highest receiving touchdown percentage at approximately 85.7%.
+
+I also identified several teams with touchdowns classified as other, which were calculated by subtracting rushing and receiving touchdowns from the reported total.
+
+I will use ggplot2 to create a stacked bar chart showing the percentage of rushing, receiving, and other touchdowns for all 32 NFL teams. This will make it easier to compare scoring styles and identify differences between teams.
+
+```{r}
+# Set the order of touchdown categories
+nfl_plot_data <- nfl_percentages |>
+  dplyr::mutate(
+    touchdown_type = factor(
+      touchdown_type,
+      levels = c("Rushing", "Receiving", "Other")
+    )
+  )
+
+# Create a stacked bar chart
+ggplot2::ggplot(
+  nfl_plot_data,
+  ggplot2::aes(
+    x = team,
+    y = touchdown_percentage,
+    fill = touchdown_type
+  )
+) +
+  ggplot2::geom_col() +
+  ggplot2::coord_flip() +
+  ggplot2::labs(
+    title = "NFL Team Touchdown Scoring Styles",
+    subtitle = "2026 Regular Season – Data Collected October 11, 2026",
+    x = "NFL Team",
+    y = "Percentage of Total Touchdowns (%)",
+    fill = "Touchdown Type"
+  ) +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(
+    axis.text.y = ggplot2::element_text(size = 8),
+    legend.position = "bottom"
+  )
+```
+
+## Compare Total Touchdowns Across NFL Teams
+
+After visualizing the percentages of rushing, receiving, and other touchdowns, I want to compare the total number of touchdowns scored by NFL teams.
+
+The previous chart showed how scoring styles differ, but percentages do not necessarily indicate which teams have scored the most touchdowns. A team can have a high rushing touchdown percentage while having fewer total touchdowns than another team.
+
+I will use dplyr to identify the teams with the highest and lowest touchdown totals and ggplot2 to create a bar chart of the ten highest-scoring teams based on total touchdowns.
+
+```{r}
+# Rank teams by total touchdowns
+team_totals <- nfl_clean |>
+  dplyr::arrange(dplyr::desc(total_td))
+
+# Display ten teams with highest touchdown totals
+highest_totals <- team_totals |>
+  dplyr::slice_head(n = 10)
+
+print(highest_totals)
+
+# Display ten teams with lowest touchdown totals
+lowest_totals <- team_totals |>
+  dplyr::arrange(total_td) |>
+  dplyr::slice_head(n = 10)
+
+print(lowest_totals)
+
+# Create bar chart of highest touchdown totals
+ggplot2::ggplot(
+  highest_totals,
+  ggplot2::aes(
+    x = reorder(team, total_td),
+    y = total_td
+  )
+) +
+  ggplot2::geom_col(fill = "steelblue") +
+  ggplot2::coord_flip() +
+  ggplot2::labs(
+    title = "Top 10 NFL Teams by Total Touchdowns",
+    subtitle = "2026 Regular Season – Data Collected October 11, 2026",
+    x = "NFL Team",
+    y = "Total Touchdowns"
+  ) +
+  ggplot2::theme_minimal()
+```
+
+## Summary of Findings
+
+In my analysis of my third dataset, I utilized NFL team scoring statistics for the 2026 regular season. The dataset comprised 32 teams and featured columns for rushing touchdowns, receiving touchdowns, and other touchdowns.
+
+I began by scrubbing the data by amending duplicate team names and ensuring no missing data. I then applied the pivot_longer() function to collate rushing and receiving touchdowns into one tidy piece of data. As a result, this step increased the number of observations substantially from 32 to 96 observations.
+
+After the computation of touchdown ratios, the results indicated that the Colts and Falcons had the highest rushing touchdown ratios of 72.7%. The team that had the highest receiving touchdown ratio was the Raiders with an approximate percentage of 85.7%.
+
+I also established that there were several teams that each had one touchdown labeled as the other. These other touchdowns resulted from subtracting the rushing-touchdowns from the total touchdowns.
+
+While analyzing total touchdowns, the Cowboys, Bills, and the 49ers were all tied with 16 touchdowns each.
+
+In any case, this project was crucial in understanding how tidy data improves data comparison of different scoring types. With the help of tidyr, dplyr, and ggplot2, I succeeded in restructuring data, calculating percentages, verifying sums, and producing appropriate charts that facilitated the perception of differences among teams.
+
+In light of the fact that the NFL season is running, this data is relevant as of October 11, 2026, rather than the data for the end of the season.
+
+## Data Source and References
+
+The original dataset was obtained from the official NFL website and contains team scoring statistics for the 2026 regular season.
+
+Since the statistics can change throughout the season, I saved a copy of the original wide-format dataset in my GitHub repository. This allows the analysis to be reproduced using the same data.
+
+**Original NFL Data Source:**
+
+<https://www.nfl.com/stats/team-stats/offense/scoring/2026/reg/all>
+
+**GitHub Repository:**
+
+<https://github.com/LBoodram26/Project-2>
+
+### References
+
+National Football League. (2026). *2026 NFL offensive scoring statistics by team.* <https://www.nfl.com/stats/team-stats/offense/scoring/2026/reg/all>
+
+Wickham, H. (2014). Tidy data. *Journal of Statistical Software, 59*(10), 1–23. <https://doi.org/10.18637/jss.v059.i10>
+
+Wickham, H., Vaughan, D., & Girlich, M. (2024). *tidyr: Tidy messy data.* <https://tidyr.tidyverse.org/>
+
+Wickham, H., François, R., Henry, L., Müller, K., & Vaughan, D. (2023). *dplyr: A grammar of data manipulation.* <https://dplyr.tidyverse.org/>
+
+Wickham, H., Navarro, D., & Pedersen, T. L. (2024). *ggplot2: Create elegant data visualisations using the grammar of graphics.* <https://ggplot2.tidyverse.org/>
+
+Wickham, H. (2023). *rvest: Easily harvest (scrape) web pages.* <https://rvest.tidyverse.org/>
