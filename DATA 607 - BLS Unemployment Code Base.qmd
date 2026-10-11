@@ -1,0 +1,505 @@
+---
+title: "DATA 607 – Project 2: BLS Unemployment Code Base"
+author: "Lakeranie Boodram"
+date: "2026-10-11"
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: false
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+---
+
+## Introduction
+
+For the next dataset, I will be working with the U.S. Bureau of Labor Statistics State Employment and Unemployment report published on April 8, 2026. This dataset was originally shared by another student during our Week 5 discussion.
+
+My goal is to use R to clean and transform the unemployment data from a wide format into a tidy structure. After organizing the information, I plan to compare unemployment rates across different states, identify changes between reporting periods, and examine how New York compares with other states.
+
+## Load Required Packages
+
+I will use R packages to import, clean, transform, and visualize the unemployment data. The tidyr and dplyr packages will help reorganize the dataset, while ggplot2 will be used to create visualizations.
+
+```{r}
+# Load packages for data cleaning and analysis
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readr)
+library(knitr)
+library(rvest)
+```
+
+For this section, I will import the U.S. Bureau of Labor Statistics unemployment report directly from my GitHub repository. The original HTML file contains the state employment and unemployment tables from the April 8, 2026 report.
+
+I will use the rvest package to read the HTML file and examine the available tables before selecting the unemployment data needed for my analysis.
+
+```{r}
+# Original BLS report
+bls_url <- "https://www.bls.gov/news.release/archives/laus_04082026.htm"
+
+# Raw GitHub URL containing the original HTML report
+github_bls_url <- paste0(
+  "https://raw.githubusercontent.com/",
+  "LBoodram26/Project-2/main/",
+  "BLS_Original.html"
+)
+
+# Read the HTML report directly from GitHub
+bls_page <- rvest::read_html(github_bls_url)
+
+# Identify the tables in the report
+bls_tables <- rvest::html_elements(bls_page, "table")
+
+# Display the number of tables found
+length(bls_tables)
+
+# Examine the number of rows in each table
+table_info <- tibble::tibble(
+  table_number = seq_along(bls_tables),
+  rows = purrr::map_int(
+    bls_tables,
+    ~ length(rvest::html_elements(.x, "tr"))
+  )
+)
+
+print(table_info)
+
+```
+
+## Examine the BLS Unemployment Table
+
+After importing the BLS report from GitHub, I found nine tables containing state employment and unemployment information. I will examine the first table to identify the reporting periods, unemployment measurements, and state names.
+
+Before making any changes, I want to understand how the original data is structured so I can determine which columns need to be reorganized into a tidy format.
+
+```{r}
+# Extract the first table from the BLS report
+bls_table1 <- rvest::html_table(
+  bls_tables[[1]],
+  fill = TRUE
+)
+
+# Check the number of rows and columns
+dim(bls_table1)
+
+# Display the original column names
+names(bls_table1)
+
+# Preview the first eight rows
+print(head(bls_table1, 8))
+
+# Examine the structure of the table
+str(bls_table1)
+```
+
+## Clean the BLS Table Headers
+
+After examining the BLS unemployment table, I found that the original data contains 56 rows and 13 columns. The first two rows contain additional column headings rather than unemployment measurements.
+
+I will remove these header rows, assign descriptive column names, and convert the unemployment measurements into numerical values. I will keep the dataset in its original wide format before using pivot_longer() in the next step.
+
+```{r}
+# Remove the two additional header rows
+bls_clean <- bls_table1[-c(1, 2), ]
+
+# Assign descriptive column names
+periods <- c(
+  "jan_2025",
+  "nov_2025",
+  "dec_2025",
+  "jan_2026"
+)
+
+names(bls_clean) <- c(
+  "state",
+  paste0("labor_force_", periods),
+  paste0("unemployed_", periods),
+  paste0("unemployment_rate_", periods)
+)
+
+# Remove extra spaces from state names
+bls_clean$state <- trimws(bls_clean$state)
+
+# Remove footnotes and notes
+bls_clean <- bls_clean[
+  !grepl(
+    "Footnotes|NOTE:",
+    bls_clean$state,
+    ignore.case = TRUE
+  ),
+]
+
+# Convert measurement columns to numeric values
+bls_clean <- dplyr::mutate(
+  bls_clean,
+  dplyr::across(
+    -state,
+    ~ readr::parse_number(as.character(.x))
+  )
+)
+
+# Check the cleaned dataset dimensions
+dim(bls_clean)
+
+# Display the first six rows
+print(head(bls_clean))
+
+# Check the final state names
+print(tail(bls_clean$state))
+
+# Check missing values
+print(colSums(is.na(bls_clean)))
+```
+
+## Transform BLS Data From Wide to Long Format
+
+After cleaning the BLS dataset, I was able to remove the extra headings and footnotes, leaving 52 observations and 13 columns. I also confirmed that the measurements were converted into numerical values without missing data.
+
+I will now use pivot_longer() from the tidyr package to reorganize the dataset. Instead of having separate columns for each reporting period, I will create a reporting period column and keep the civilian labor force, number of unemployed people, and unemployment rate as separate variables.
+
+This will make it easier to compare unemployment rates across states and identify changes over time.
+
+```{r}
+# Transform the BLS dataset into tidy format
+bls_tidy <- bls_clean |>
+  tidyr::pivot_longer(
+    cols = -state,
+    names_to = c(".value", "period"),
+    names_pattern = "(labor_force|unemployed|unemployment_rate)_(jan_2025|nov_2025|dec_2025|jan_2026)"
+  ) |>
+  dplyr::mutate(
+    period = factor(
+      period,
+      levels = c(
+        "jan_2025",
+        "nov_2025",
+        "dec_2025",
+        "jan_2026"
+      ),
+      labels = c(
+        "January 2025",
+        "November 2025",
+        "December 2025",
+        "January 2026"
+      )
+    )
+  ) |>
+  dplyr::arrange(state, period)
+
+# Check the dimensions of the tidy dataset
+dim(bls_tidy)
+
+# Display the first eight observations
+print(head(bls_tidy, 8))
+
+# Check the column names
+names(bls_tidy)
+
+# Confirm that each period contains 52 observations
+print(table(bls_tidy$period))
+
+```
+
+## Compare Unemployment Rates Across States
+
+After transforming the dataset, I now have 208 observations with separate columns for state, reporting period, civilian labor force, unemployed workers, and unemployment rate.
+
+I will use dplyr to compare unemployment rates across states for January 2026. I want to identify which states had the highest and lowest unemployment rates during this reporting period.
+
+I will also compare New York's unemployment rate with the other states to better understand how it ranks.
+
+```{r}
+# Select unemployment rates for January 2026
+jan_2026_rates <- bls_tidy |>
+  dplyr::filter(period == "January 2026") |>
+  dplyr::arrange(dplyr::desc(unemployment_rate))
+
+# Display the ten highest unemployment rates
+highest_rates <- jan_2026_rates |>
+  dplyr::slice_head(n = 10)
+
+print(highest_rates)
+
+# Display the ten lowest unemployment rates
+lowest_rates <- jan_2026_rates |>
+  dplyr::arrange(unemployment_rate) |>
+  dplyr::slice_head(n = 10)
+
+print(lowest_rates)
+
+# Compare New York with other reporting areas
+new_york_rate <- jan_2026_rates |>
+  dplyr::filter(state == "New York")
+
+print(new_york_rate)
+
+# Calculate New York's position among reporting areas
+ny_ranking <- jan_2026_rates |>
+  dplyr::mutate(
+    rank = dplyr::min_rank(
+      dplyr::desc(unemployment_rate)
+    )
+  ) |>
+  dplyr::filter(state == "New York") |>
+  dplyr::select(state, unemployment_rate, rank)
+
+print(ny_ranking)
+```
+
+## Compare Changes in Unemployment Rates Over Time
+
+After comparing unemployment rates across states, I found that New York had an unemployment rate of 4.6% in January 2026, ranking 14th among the 52 reporting areas when ranking from highest to lowest with ties.
+
+I will now compare unemployment rates between January 2025 and January 2026 to identify which states experienced the largest increases or decreases during this period.
+
+I will use dplyr and pivot_wider() to place the unemployment rates side by side and calculate the difference in percentage points.
+
+```{r}
+# Select January 2025 and January 2026
+bls_changes <- bls_tidy |>
+  dplyr::filter(
+    period %in% c("January 2025", "January 2026")
+  ) |>
+  dplyr::select(state, period, unemployment_rate) |>
+  tidyr::pivot_wider(
+    names_from = period,
+    values_from = unemployment_rate
+  ) |>
+  dplyr::rename(
+    rate_2025 = `January 2025`,
+    rate_2026 = `January 2026`
+  ) |>
+  dplyr::mutate(
+    change_points = rate_2026 - rate_2025
+  ) |>
+  dplyr::arrange(dplyr::desc(change_points))
+
+# Display the largest increases
+largest_increases <- bls_changes |>
+  dplyr::slice_head(n = 10)
+
+print(largest_increases)
+
+# Display the largest decreases
+largest_decreases <- bls_changes |>
+  dplyr::arrange(change_points) |>
+  dplyr::slice_head(n = 10)
+
+print(largest_decreases)
+
+# Summarize changes across reporting areas
+bls_change_summary <- bls_changes |>
+  dplyr::summarise(
+    increased = sum(change_points > 0, na.rm = TRUE),
+    decreased = sum(change_points < 0, na.rm = TRUE),
+    unchanged = sum(change_points == 0, na.rm = TRUE),
+    average_change_points = mean(change_points, na.rm = TRUE)
+  )
+
+print(bls_change_summary)
+
+# Examine New York's change
+new_york_change <- bls_changes |>
+  dplyr::filter(state == "New York")
+
+print(new_york_change)
+```
+
+## Visualize Changes in Unemployment Rates
+
+After comparing unemployment rates between January 2025 and January 2026, I found that 32 reporting areas experienced an increase, 10 experienced a decrease, and 10 remained unchanged.
+
+The average change across reporting areas was an increase of approximately 0.24 percentage points. Delaware experienced the largest increase, while Indiana, Kentucky, and Ohio had the largest decreases.
+
+I will use ggplot2 to create a bar chart showing the ten reporting areas with the largest increases in unemployment rates. This will help me visualize the differences more clearly.
+
+```{r}
+# Select the ten largest increases
+top_increases <- bls_changes |>
+  dplyr::slice_max(
+    order_by = change_points,
+    n = 10,
+    with_ties = FALSE
+  )
+
+# Create a bar chart
+ggplot2::ggplot(
+  top_increases,
+  ggplot2::aes(
+    x = reorder(state, change_points),
+    y = change_points
+  )
+) +
+  ggplot2::geom_col(fill = "steelblue") +
+  ggplot2::coord_flip() +
+  ggplot2::labs(
+    title = "Top 10 Increases in Unemployment Rates",
+    subtitle = "January 2025 to January 2026",
+    x = "State or Reporting Area",
+    y = "Change in Unemployment Rate (Percentage Points)"
+  ) +
+  ggplot2::theme_minimal()
+```
+
+## Analyze New York's Unemployment Rate Over Time
+
+After comparing unemployment rates across different states, I want to examine how New York's unemployment rate changed during the reporting periods available in the BLS dataset.
+
+The previous analysis showed that New York's unemployment rate increased from 4.1% in January 2025 to 4.6% in January 2026, an increase of 0.5 percentage points.
+
+I will use dplyr to select New York's unemployment measurements and ggplot2 to create a line chart showing the changes across the four available reporting periods.
+
+```{r}
+# Filter the dataset for New York
+new_york_trend <- bls_tidy |>
+  dplyr::filter(state == "New York") |>
+  dplyr::arrange(period)
+
+# Display New York's unemployment rates
+print(
+  new_york_trend |>
+    dplyr::select(period, unemployment_rate)
+)
+
+# Create a line chart of New York's unemployment rates
+ggplot2::ggplot(
+  new_york_trend,
+  ggplot2::aes(
+    x = period,
+    y = unemployment_rate,
+    group = 1
+  )
+) +
+  ggplot2::geom_line(
+    color = "steelblue",
+    linewidth = 1
+  ) +
+  ggplot2::geom_point(
+    color = "steelblue",
+    size = 3
+  ) +
+  ggplot2::geom_text(
+    ggplot2::aes(
+      label = paste0(unemployment_rate, "%")
+    ),
+    vjust = -0.8,
+    size = 3.5
+  ) +
+  ggplot2::labs(
+    title = "New York Unemployment Rate",
+    subtitle = "Selected BLS Reporting Periods, 2025–2026",
+    x = "Reporting Period",
+    y = "Unemployment Rate (%)"
+  ) +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(
+    axis.text.x = ggplot2::element_text(
+      angle = 30,
+      hjust = 1
+    )
+  )
+```
+
+## Compare New York With Other States
+
+After examining New York's unemployment rate, I found that it increased from 4.1% in January 2025 to 4.6% in January 2026. The rate remained unchanged across the last three reporting periods included in the dataset.
+
+I want to compare New York with California, New Jersey, Florida, and Texas to see how unemployment rates differ between these states.
+
+I will use dplyr to select the states and ggplot2 to create a comparison chart showing their unemployment rates across the available reporting periods.
+
+```{r}
+# Select states for comparison
+selected_states <- c(
+  "New York",
+  "California",
+  "New Jersey",
+  "Florida",
+  "Texas"
+)
+
+# Filter the tidy dataset
+state_comparison <- bls_tidy |>
+  dplyr::filter(state %in% selected_states) |>
+  dplyr::arrange(state, period)
+
+# Display unemployment rates
+print(
+  state_comparison |>
+    dplyr::select(state, period, unemployment_rate)
+)
+
+# Create a comparison chart
+ggplot2::ggplot(
+  state_comparison,
+  ggplot2::aes(
+    x = period,
+    y = unemployment_rate,
+    color = state,
+    group = state
+  )
+) +
+  ggplot2::geom_line(linewidth = 1) +
+  ggplot2::geom_point(size = 2.5) +
+  ggplot2::labs(
+    title = "Unemployment Rate Comparison Across Selected States",
+    subtitle = "Selected BLS Reporting Periods, 2025–2026",
+    x = "Reporting Period",
+    y = "Unemployment Rate (%)",
+    color = "State"
+  ) +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(
+    axis.text.x = ggplot2::element_text(
+      angle = 30,
+      hjust = 1
+    )
+  )
+```
+
+## Summary of Findings
+
+After the cleaning process and the transformation of the database generated by the Bureau of Labor Statistics, it became possible to conduct a comparison of unemployment rates in 52 regions: 50 states, District of Columbia, and Puerto Rico. As the original database contained several columns with different time periods, this comparison was made possible due to the use of pivot_longer().
+
+The comparative analysis of unemployment rates showed that 32 regions had a growth of unemployment rates from January 2025 to January 2026, while there were 10 regions with decreasing unemployment rates, and 10 regions had unemployment rates that remained unchanged. The average value of the increase of unemployment rate in the examined regions accounted for 0.24 percentage points per region.
+
+Delaware had the biggest rise in unemployment rate, which went from 4.1% to 5.4%. The biggest drop in unemployment rates was noted in Indiana, Kentucky, and Ohio, which decreased by 0.5 percentage points.
+
+Moreover, New York unemployment levels went up from 4.1% reached in January 2025 to 4.6% reached in January 2026. In January 2026, New York ranked as the 14th among the considered 52 regions in terms of unemployment level starting from the highest level of unemployment.
+
+When comparing New York with California, New Jersey, Florida, and Texas, I found that California and New Jersey had higher unemployment rates throughout the selected reporting periods. Florida experienced an increase, while Texas showed smaller changes.
+
+All in all, this project taught me how to tidy data so that I can analyze unemployment statistics between the different states and time periods involved. With the help of tidyr, dplyr, and ggplot2, I managed to reorganize the dataset, conduct necessary calculations, and produce visualizations that were difficult to generate from the original table in wide format.
+
+## Data Source and References
+
+The dataset was obtained from the U.S. Bureau of Labor Statistics State Employment and Unemployment report published on April 8, 2026. The report contains information about civilian labor force participation, unemployed workers, and unemployment rates across states and other reporting areas.
+
+For this analysis, I used Table 1 from the report. The original HTML report was uploaded to GitHub and imported directly into R using a raw GitHub link to make the analysis reproducible.
+
+**Original BLS Report:**
+
+<https://www.bls.gov/news.release/archives/laus_04082026.htm>
+
+**GitHub Data Source:**
+
+<https://github.com/LBoodram26/Project-2>
+
+### References
+
+U.S. Bureau of Labor Statistics. (2026, April 8). *State employment and unemployment — January 2026.* <https://www.bls.gov/news.release/archives/laus_04082026.htm>
+
+Wickham, H. (2014). Tidy data. *Journal of Statistical Software, 59*(10), 1–23. <https://doi.org/10.18637/jss.v059.i10>
+
+Wickham, H., Vaughan, D., & Girlich, M. (2024). *tidyr: Tidy messy data.* <https://tidyr.tidyverse.org/>
+
+Wickham, H., François, R., Henry, L., Müller, K., & Vaughan, D. (2023). *dplyr: A grammar of data manipulation.* <https://dplyr.tidyverse.org/>
+
+Wickham, H., Navarro, D., & Pedersen, T. L. (2024). *ggplot2: Create elegant data visualisations using the grammar of graphics.* <https://ggplot2.tidyverse.org/>
+
+Wickham, H. (2023). *rvest: Easily harvest (scrape) web pages.* <https://rvest.tidyverse.org/>
